@@ -1,0 +1,115 @@
+openapi: 3.1.0
+info:
+  title: Tap & Order API
+  version: 0.1.0
+  description: Initial contract for the Ghana Mobility MVP. Server-authoritative booking, seat and payment state.
+servers:
+  - url: https://api.example.invalid/v1
+    description: Placeholder until deployment ADR selects environments
+tags:
+  - name: Auth
+  - name: Mobility
+  - name: Bookings
+  - name: Payments
+  - name: Tracking
+paths:
+  /auth/otp/request:
+    post:
+      tags: [Auth]
+      summary: Request a Ghana phone OTP
+      responses:
+        '202': { description: OTP request accepted }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /auth/otp/verify:
+    post:
+      tags: [Auth]
+      summary: Verify OTP and establish authenticated context
+      responses:
+        '200': { description: Authenticated }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /mobility/routes:
+    get:
+      tags: [Mobility]
+      summary: Search directional routes
+      responses:
+        '200': { description: Route results }
+  /mobility/routes/{routeId}/stops:
+    get:
+      tags: [Mobility]
+      summary: List designated stops in route order
+      parameters:
+        - { name: routeId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Ordered stops }
+  /mobility/trips:
+    get:
+      tags: [Mobility]
+      summary: Discover scheduled or live eligible trips
+      responses:
+        '200': { description: Eligible trips }
+  /mobility/trips/{tripId}/seat-availability:
+    get:
+      tags: [Mobility]
+      summary: Calculate segment-aware seat availability
+      parameters:
+        - { name: tripId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: pickupStopId, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: dropoffStopId, in: query, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Segment-aware availability }
+  /bookings:
+    post:
+      tags: [Bookings]
+      summary: Create a booking attempt
+      parameters:
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string, minLength: 16 } }
+      responses:
+        '201': { description: Booking created }
+        '409': { description: Seat conflict or invalid transition }
+  /bookings/{bookingId}:
+    get:
+      tags: [Bookings]
+      summary: Read authoritative booking state
+      parameters:
+        - { name: bookingId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Booking }
+  /bookings/{bookingId}/cancel:
+    post:
+      tags: [Bookings]
+      summary: Request cancellation under policy
+      parameters:
+        - { name: bookingId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Cancellation processed or pending refund }
+  /payments/intents:
+    post:
+      tags: [Payments]
+      summary: Create provider-neutral payment intent
+      parameters:
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string } }
+      responses:
+        '201': { description: Payment intent created }
+  /tracking/trips/{tripId}/location:
+    post:
+      tags: [Tracking]
+      summary: Submit authorized driver location sample
+      parameters:
+        - { name: tripId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '202': { description: Location accepted }
+  /tracking/bookings/{bookingId}:
+    get:
+      tags: [Tracking]
+      summary: Read journey-relevant vehicle tracking for a passenger booking
+      parameters:
+        - { name: bookingId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Relevant tracking view }
+components:
+  responses:
+    BadRequest:
+      description: Validation failed
+    RateLimited:
+      description: Too many requests
